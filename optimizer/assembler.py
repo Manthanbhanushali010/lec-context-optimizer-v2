@@ -77,6 +77,14 @@ class Assembler:
             return []
 
         repaired = []
+        # First pass: build set of tool_call_ids that have matching tool_results.
+        # Used in the second pass to detect orphan tool_use messages whose
+        # tool_results were dropped during compression.
+        responded_tool_ids = {
+            m.tool_call_id
+            for m in messages
+            if m.role == MessageRole.TOOL_RESULT and m.tool_call_id is not None
+        }
 
         # Ensure conversation starts with user or system message
         first_content = messages[0]
@@ -93,6 +101,13 @@ class Assembler:
             if msg.role == MessageRole.TOOL_RESULT:
                 if not repaired or repaired[-1].role != MessageRole.TOOL_USE:
                     # Orphaned tool_result — skip it, it would confuse the LLM
+                    continue
+            # Rule: tool_use must have a matching tool_result.
+            # If the response was dropped during compression, skip the orphan
+            # to avoid leaving a tool call with no answer (which causes the
+            # downstream LLM to hallucinate the result).
+            if msg.role == MessageRole.TOOL_USE:
+                if msg.tool_call_id not in responded_tool_ids:
                     continue
 
             # Rule: no consecutive assistant messages
