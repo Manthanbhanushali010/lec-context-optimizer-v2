@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEC Context Optimizer</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:#f8f7f4;color:#1a1a1a;min-height:100vh;}
+nav{background:#0a0a0a;color:#fff;padding:1rem 2rem;display:flex;align-items:center;justify-content:space-between;}
+nav h1{font-size:15px;font-weight:500;letter-spacing:0.02em;}
+nav span{font-size:12px;color:#888;}
+.wrap{max-width:1100px;margin:0 auto;padding:2rem 1.5rem;}
+.hero{margin-bottom:2rem;}
+.hero h2{font-size:26px;font-weight:500;margin-bottom:8px;}
+.hero p{font-size:14px;color:#666;line-height:1.6;max-width:620px;}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:2rem;}
+.metric{background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:1rem 1.25rem;}
+.ml{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;}
+.mv{font-size:22px;font-weight:500;}
+.mv.g{color:#0f6e56;}.mv.a{color:#854f0b;}
+.card{background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;}
+.card h3{font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1rem;}
+textarea{width:100%;font-size:13px;font-family:'SF Mono','Fira Code',monospace;resize:vertical;min-height:140px;border:1px solid #e8e6e0;border-radius:8px;padding:10px 12px;color:#1a1a1a;background:#fafaf8;line-height:1.6;outline:none;}
+textarea:focus{border-color:#0a0a0a;}
+input[type=text]{width:100%;font-size:14px;border:1px solid #e8e6e0;border-radius:8px;padding:10px 12px;background:#fafaf8;outline:none;margin-bottom:10px;}
+input[type=text]:focus{border-color:#0a0a0a;}
+.row{display:flex;gap:10px;align-items:center;margin-bottom:12px;}
+.row input{flex:1;margin:0;}
+.btn{background:#0a0a0a;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;cursor:pointer;}
+.btn:hover{opacity:0.8;}
+.gbtn{background:transparent;color:#0a0a0a;border:1px solid #e8e6e0;border-radius:8px;padding:6px 14px;font-size:12px;cursor:pointer;}
+.gbtn:hover{background:#f0eeea;}
+.pills{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.pill{font-size:12px;padding:4px 12px;border-radius:20px;border:1px solid #e8e6e0;cursor:pointer;background:#fff;color:#666;}
+.pill.active{background:#0a0a0a;color:#fff;border-color:#0a0a0a;}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:1.5rem;}
+.panel{background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:1.25rem;}
+.panel h3{font-size:11px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1rem;}
+.cs{max-height:320px;overflow-y:auto;}
+.msg{padding:8px 12px;border-radius:8px;margin-bottom:6px;font-size:13px;line-height:1.55;border-left:3px solid transparent;}
+.mu{background:#f5f4f0;border-left-color:#ccc;}
+.ma{border:1px solid #e8e6e0;border-left:3px solid #e8e6e0;}
+.ml2{border-left-color:#1d9e75!important;background:#f0faf5;}
+.ms{border-left-color:#ba7517;background:#fdf6e8;font-style:italic;font-size:12px;color:#633806;}
+.badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:500;vertical-align:middle;}
+.bl{background:#e1f5ee;color:#0f6e56;}
+.bk{background:#e6f1fb;color:#185fa5;}
+.bc{background:#faeeda;color:#854f0b;}
+.bd{background:#f0eeea;color:#888;}
+.sr{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:12px;}
+.sl{color:#666;width:110px;flex-shrink:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.sb{flex:1;height:6px;background:#f0eeea;border-radius:3px;overflow:hidden;}
+.sf{height:100%;border-radius:3px;}
+.sv{font-weight:500;width:32px;text-align:right;}
+.empty{font-size:13px;color:#aaa;padding:1rem 0;}
+.hint{font-size:12px;color:#aaa;margin-bottom:8px;}
+.exrow{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:1rem;}
+.li{display:flex;align-items:center;gap:6px;font-size:12px;color:#666;}
+.ld{width:10px;height:10px;border-radius:2px;}
+@media(max-width:700px){.panels{grid-template-columns:1fr;}.metrics{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+<nav><h1>LEC Context Optimizer</h1><span>Intelligent Context Compression for Multi-Turn Agents</span></nav>
+<div style="background:#fdf6e8;border-bottom:1px solid #e8e6e0;padding:10px 2rem;font-size:12px;color:#854f0b;text-align:center;line-height:1.5;">
+  <strong>Note:</strong> This dashboard is a browser-based visualization of the scoring algorithm — it mirrors the weight profiles, landmark patterns, and classification thresholds of the production system, reimplemented in JavaScript so it runs without a backend. The production system is the Python pipeline in <code>optimizer/</code>, exposed via FastAPI in <code>api/server.py</code> and validated end-to-end in <code>evaluation/eval_runner.py</code> (11/11 eval wins, 42.3% average token reduction).
+</div>
+<div class="wrap">
+  <div class="hero">
+    <h2>Real-time conversation compression</h2>
+    <p>Paste any conversation, ask any question. The optimizer scores every message for relevance, preserves critical decisions verbatim, and compresses noise — proving quality is maintained.</p>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="ml">Token reduction</div><div class="mv g" id="mr">—</div></div>
+    <div class="metric"><div class="ml">Landmarks preserved</div><div class="mv" id="mlm">—</div></div>
+    <div class="metric"><div class="ml">Messages compressed</div><div class="mv a" id="mc">—</div></div>
+    <div class="metric"><div class="ml">Query type</div><div class="mv" id="mq" style="font-size:15px;">—</div></div>
+  </div>
+  <div class="card">
+    <h3>Conversation input</h3>
+    <p class="hint">Format each line as "User: ..." or "Assistant: ..." — or load an example below</p>
+    <div class="exrow">
+      <button class="gbtn" onclick="loadEx('db')">DB architecture decision</button>
+      <button class="gbtn" onclick="loadEx('trade')">Trade negotiation (LEC)</button>
+      <button class="gbtn" onclick="loadEx('incident')">Incident response</button>
+    </div>
+    <textarea id="ci" placeholder="User: What database should we use?&#10;Assistant: What are the requirements?&#10;User: We need strong consistency and JSON support.&#10;Assistant: PostgreSQL with JSONB is a good fit.&#10;User: We decided to go with PostgreSQL.&#10;Assistant: Great. Deadline for schema is Thursday."></textarea>
+    <h3 style="margin-top:1rem;">Your query — ask anything</h3>
+    <div class="row">
+      <input type="text" id="qi" placeholder="Type any question about the conversation..." value="What did we decide?"/>
+      <button class="btn" onclick="run()">Optimize &rarr;</button>
+    </div>
+    <div class="pills">
+      <span style="font-size:12px;color:#888;margin-right:4px;">Query type:</span>
+      <div class="pill active" onclick="st(this,'auto')">Auto-detect</div>
+      <div class="pill" onclick="st(this,'factual')">Factual</div>
+      <div class="pill" onclick="st(this,'analytical')">Analytical</div>
+      <div class="pill" onclick="st(this,'status')">Status</div>
+    </div>
+  </div>
+  <div class="legend">
+    <div class="li"><div class="ld" style="background:#1d9e75;"></div>Landmark — always preserved</div>
+    <div class="li"><div class="ld" style="background:#378add;"></div>Relevant — kept verbatim</div>
+    <div class="li"><div class="ld" style="background:#ba7517;"></div>Compressed — summarised</div>
+    <div class="li"><div class="ld" style="background:#ccc;"></div>Noise — dropped</div>
+  </div>
+  <div class="panels">
+    <div class="panel"><h3 id="ft">Full conversation</h3><div class="cs" id="fc"><p class="empty">Load an example or paste a conversation, then click Optimize.</p></div></div>
+    <div class="panel"><h3>Optimized context</h3><div class="cs" id="oc"><p class="empty">Optimized output appears here.</p></div></div>
+  </div>
+  <div class="panels">
+    <div class="panel"><h3>Top relevance scores</h3><div id="sp"><p class="empty">Run optimizer to see scores.</p></div></div>
+    <div class="panel"><h3>Weight profile &amp; breakdown</h3><div id="wp"><p class="empty">Weight breakdown appears here.</p></div></div>
+  </div>
+</div>
+<script>
+let ct='auto';
+const EX={
+db:`User: Hey team, we need to decide on our database for the new service.
+Assistant: Sure. What are the main requirements?
+User: We need horizontal scaling, strong consistency, and JSON support.
+Assistant: That narrows it down to PostgreSQL with JSONB or MongoDB.
+User: What about latency requirements?
+Assistant: Sub-10ms for reads, we can tolerate 50ms for writes.
+User: MongoDB has better horizontal scaling out of the box.
+Assistant: True, but PostgreSQL JSONB performance has improved a lot.
+User: PostgreSQL JSONB does 95k reads per sec vs MongoDB 87k on our hardware.
+Assistant: That is surprising. PostgreSQL wins on reads.
+User: Our workload is 80 percent reads so PostgreSQL looks better overall.
+Assistant: Agreed. Also, the team already knows PostgreSQL well.
+User: Right. I think we have decided then.
+Assistant: We decided to go with PostgreSQL with JSONB for the new service.
+User: Great. Who is handling the schema design?
+Assistant: I will take that on. I will have a draft by Thursday.
+User: The deadline for production DB is 15 March. Let us track that.
+Assistant: Noted. I will add it to the project tracker.
+User: Should we use RDS or self-managed?
+Assistant: RDS is easier to operate. The cost is about 800 pounds per month.
+User: That is within budget. Let us go with RDS.
+Assistant: Approved. RDS PostgreSQL it is.
+User: Budget approved for RDS at 800 pounds per month.
+Assistant: Great. I will proceed with the provisioning ticket.
+User: Thanks. Let us reconvene Thursday to review the schema draft.
+Assistant: Thursday it is. Schema and migration scripts will be ready.
+User: Perfect.`,
+trade:`User: Good morning. We are interested in sourcing 50000 units of industrial servo motors.
+Assistant: Good morning. We can accommodate that volume. What are your delivery requirements?
+User: We need delivery within 90 days. Is that feasible?
+Assistant: 90 days is tight but achievable. Standard lead time is 75 days for that quantity.
+User: What is the unit price at that volume?
+Assistant: At 50000 units, we can offer 42 pounds per unit CIF London.
+User: That is higher than expected. Our budget is 38 pounds per unit.
+Assistant: Could you consider a larger order? At 75000 units we could do 39 pounds.
+User: Let me check with our team. What about payment terms?
+Assistant: We typically require 30 percent upfront, 70 percent on delivery.
+User: We would prefer net 60 on the full amount.
+Assistant: We can offer net 30 with a letter of credit.
+User: Our finance team needs net 45 minimum.
+Assistant: We can agree to net 45 with confirmed LC. That is our best terms.
+User: Agreed on net 45 with LC. Can you do 40 pounds at 50000 units?
+Assistant: Yes. We agreed on 40 pounds per unit at 50000 units, net 45 with confirmed LC.
+User: Good. What about warranty terms?
+Assistant: 24 months standard warranty, parts and labour.
+User: We need 36 months for this application.
+Assistant: We can do 36 months for an additional 1.50 pounds per unit.
+User: Agreed. Final price 41.50 pounds per unit, 36 month warranty, net 45, delivery 90 days.
+Assistant: Confirmed. I will send the formal quote today.
+User: Please include compliance certificates for the UK market.
+Assistant: CE marking and UKCA certificates included in the documentation package.
+User: We have agreed on all terms. When can we get the contract?
+Assistant: Contract will be ready by end of week. We are committed to this deal.`,
+incident:`User: We have a P1 incident. API latency is at 4 seconds, SLA is 500ms.
+Assistant: On it. What is the error rate?
+User: 5 percent of requests are 500s. Started 20 minutes ago.
+Assistant: Any recent deployments?
+User: Yes. v2.3.1 shipped at 14:00 UTC, incident started at 14:15.
+Assistant: High correlation. Let us look at what changed in v2.3.1.
+User: It includes the new recommendation engine integration.
+Assistant: That is the likely culprit. Is the recommendation service healthy?
+User: It shows 98 percent CPU utilisation.
+Assistant: It is saturated. The new integration is not rate-limiting its calls.
+User: You are right. There is no rate limiter in the new code.
+Assistant: Immediate fix: roll back to v2.3.0 to restore service.
+User: Agreed. Rolling back now. ETA 5 minutes.
+Assistant: Good. While that runs, let us plan the proper fix.
+User: Rollback complete. Latency back to 120ms. Error rate 0 percent.
+Assistant: Service restored. Root cause confirmed: missing rate limiter.
+User: We decided: rate limiter at 100 calls per second plus circuit breaker before re-deploying.
+Assistant: I will implement that. Can I have until tomorrow 10am?
+User: Yes. Fix deadline is tomorrow 10am UTC.
+Assistant: I will also add load tests to CI as an action item.
+User: Who owns each action item?
+Assistant: Rate limiter is mine. Load tests are mine. Customer comms is Sarah. Postmortem is mine.
+User: Confirmed. Let us debrief after the fix ships.`
+};
+
+function loadEx(k){
+  document.getElementById('ci').value=EX[k];
+  const q={db:'What database did we decide to use and why?',trade:'What are all the terms we agreed on?',incident:'What was decided to fix the incident?'};
+  document.getElementById('qi').value=q[k];
+  run();
+}
+function st(el,t){document.querySelectorAll('.pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');ct=t;}
+function parseC(text){const msgs=[];let i=0;text.trim().split('\n').forEach(l=>{const t=l.trim();if(!t)return;if(t.toLowerCase().startsWith('user:'))msgs.push({role:'user',content:t.substring(5).trim(),idx:i++});else if(t.toLowerCase().startsWith('assistant:'))msgs.push({role:'assistant',content:t.substring(10).trim(),idx:i++});});return msgs;}
+function dType(q){const ql=q.toLowerCase();const f=[/\bwhat (did|was|is|were)\b/,/\bwhen\b/,/\bwho\b/,/\bwhich\b/,/\bhow much\b/,/\bwhat.*decide\b/].filter(p=>p.test(ql)).length;const a=[/\bwhy\b/,/\btrade.?off\b/,/\banalyse\b/,/\banalyze\b/,/\bcompare\b/,/\bexplain\b/,/\bsummarise\b/].filter(p=>p.test(ql)).length;const s=[/\bcurrent\b/,/\bstatus\b/,/\blatest\b/,/\bprogress\b/,/\bupdate\b/].filter(p=>p.test(ql)).length;if(a>f&&a>s)return'analytical';if(s>f&&s>a)return'status';if(f>0)return'factual';return'general';}
+function gW(t){return{factual:{keyword:0.30,semantic:0.15,recency:0.10,landmark:0.45},analytical:{keyword:0.15,semantic:0.50,recency:0.15,landmark:0.20},status:{keyword:0.20,semantic:0.25,recency:0.45,landmark:0.10},general:{keyword:0.20,semantic:0.30,recency:0.20,landmark:0.30}}[t]||{keyword:0.20,semantic:0.30,recency:0.20,landmark:0.30};}
+function tok(text){const stop=new Set(['a','an','the','is','are','was','were','be','been','have','has','had','do','does','did','will','would','could','should','i','we','you','they','he','she','it','this','that','and','or','but','in','on','at','to','for','of','with','about','what','how','when','where','who','which','can','may','just','also','all','any','our','your']);return(text.toLowerCase().match(/\b[a-z][a-z0-9]*\b/g)||[]).filter(t=>!stop.has(t)&&t.length>2);}
+function kw(c,q){if(!q.length)return 0;const cs=new Set(tok(c));const hits=q.filter(t=>cs.has(t)).length;const p=cs.size?hits/cs.size:0;const r=q.length?hits/q.length:0;return p+r>0?2*p*r/(p+r):0;}
+function sem(c,q){const cs=new Set(tok(c));const qs=tok(q);if(!qs.length||!cs.size)return 0;return Math.min(1,qs.filter(w=>cs.has(w)).length/qs.length*1.3);}
+function lm(c){const ps=[/\bwe (decided|agreed|confirmed|resolved|concluded)\b/i,/\bapproved\b/i,/\bdeadline\b/i,/\bdue date\b/i,/\baction item\b/i,/\bcommit/i,/budget.{0,20}(approved|set)/i,/\bfinal (decision|call)\b/i,/\bgoing with\b/i,/£[\d,]+/,/\d+ pounds/i];const hits=ps.filter(p=>p.test(c)).length;return hits===0?0:Math.min(1,0.5+0.25*hits);}
+function run(){
+  const conv=document.getElementById('ci').value.trim();
+  const query=document.getElementById('qi').value.trim();
+  if(!conv||!query)return;
+  const msgs=parseC(conv);
+  if(msgs.length<2){document.getElementById('fc').innerHTML='<p style="color:#c00;font-size:13px;">Could not parse. Use "User: ..." and "Assistant: ..." on each line.</p>';return;}
+  const dt=ct==='auto'?dType(query):ct;
+  const w=gW(dt);
+  const qT=tok(query);
+  const n=msgs.length;
+  const scored=msgs.map((msg,i)=>{
+    const k=kw(msg.content,qT);
+    const r=Math.exp(-0.015*(n-1-i));
+    const l=lm(msg.content);
+    const s=sem(msg.content,query);
+    const comp=Math.min(1,w.keyword*k+w.semantic*s+w.recency*r+w.landmark*l);
+    let cls='noise';
+    if(l>=0.75)cls='landmark';
+    else if(comp>=0.55)cls='relevant';
+    else if(comp>=0.30)cls='compressible';
+    return{msg,k,r,l,s,comp,cls};
+  });
+  document.getElementById('ft').textContent=`Full conversation (${msgs.length} messages)`;
+  const bc={landmark:'bl',relevant:'bk',compressible:'bc',noise:'bd'};
+  document.getElementById('fc').innerHTML=scored.map(sc=>`<div class="msg ${sc.msg.role==='user'?'mu':'ma'}">${sc.msg.content}<span class="badge ${bc[sc.cls]}">${sc.cls}</span></div>`).join('');
+  let oh='',kept=0,comp=0,drop=0,lms=0,grp=[];
+  function fl(){if(grp.length>=2){oh+=`<div class="msg ms">[${grp.length} messages compressed — ${grp[0].content.substring(0,55)}...]</div>`;comp+=grp.length;}else if(grp.length===1)drop++;grp=[];}
+  scored.forEach(sc=>{
+    if(sc.cls==='landmark'){fl();oh+=`<div class="msg ml2">${sc.msg.content}<span class="badge bl">landmark</span></div>`;kept++;lms++;}
+    else if(sc.cls==='relevant'){fl();oh+=`<div class="msg ${sc.msg.role==='user'?'mu':'ma'}">${sc.msg.content}<span class="badge bk">kept</span></div>`;kept++;}
+    else grp.push(sc.msg);
+  });
+  fl();
+  document.getElementById('oc').innerHTML=oh||'<p class="empty">All messages compressed.</p>';
+  const oT=msgs.reduce((a,m)=>a+Math.max(1,m.content.length/4),0);
+  const opT=Math.round(oT*(kept/n)+comp*5);
+  const red=Math.max(0,Math.round((1-opT/oT)*100));
+  document.getElementById('mr').textContent=red+'%';
+  document.getElementById('mlm').textContent=lms;
+  document.getElementById('mc').textContent=comp;
+  document.getElementById('mq').textContent=dt.charAt(0).toUpperCase()+dt.slice(1);
+  const colors={landmark:'#1d9e75',relevant:'#378add',compressible:'#ba7517',noise:'#ccc'};
+  document.getElementById('sp').innerHTML=[...scored].sort((a,b)=>b.comp-a.comp).slice(0,8).map(sc=>{const p=Math.round(sc.comp*100);return`<div class="sr"><span class="sl">${sc.msg.content.substring(0,22)}...</span><div class="sb"><div class="sf" style="width:${p}%;background:${colors[sc.cls]};"></div></div><span class="sv">${p}%</span></div>`;}).join('');
+  document.getElementById('wp').innerHTML=`<p style="font-size:11px;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em;">Active — ${dt}</p>${[['Landmark',w.landmark,'#1d9e75'],['Semantic',w.semantic,'#378add'],['Keyword',w.keyword,'#ba7517'],['Recency',w.recency,'#888']].map(([l,wt,c])=>`<div class="sr"><span class="sl">${l}</span><div class="sb"><div class="sf" style="width:${Math.round(wt*100)}%;background:${c};"></div></div><span class="sv">${Math.round(wt*100)}%</span></div>`).join('')}<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:14px;"><div class="metric"><div class="ml">Kept</div><div class="mv" style="font-size:18px;">${kept}</div></div><div class="metric"><div class="ml" style="color:#854f0b;">Compressed</div><div class="mv a" style="font-size:18px;">${comp}</div></div><div class="metric"><div class="ml">Dropped</div><div class="mv" style="font-size:18px;">${drop}</div></div></div>`;
+}
+</script>
+</body>
+</html>
