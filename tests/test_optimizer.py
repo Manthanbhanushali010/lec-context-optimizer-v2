@@ -178,6 +178,17 @@ class TestAssembler:
         )
         assert result.messages == []
 
+    def test_orphan_tool_use_dropped(self):
+        """tool_use with no matching tool_result should be dropped."""
+        messages = [
+            Message(index=0, role=MessageRole.USER, content="Run the search tool"),
+            Message(index=1, role=MessageRole.TOOL_USE, content="search query", tool_call_id="call_001"),
+            Message(index=2, role=MessageRole.ASSISTANT, content="Let me check that for you"),
+        ]
+        result = self.assembler._validate_and_repair(messages)
+        roles = [m.role for m in result]
+        assert MessageRole.TOOL_USE not in roles, "Orphan tool_use should be dropped"
+
 
 class TestOptimizer:
     def setup_method(self):
