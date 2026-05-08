@@ -16,7 +16,8 @@ If violations are detected, the assembler repairs them by:
   - Removing truly orphaned turns
   - Never silently reordering (that would change meaning)
 """
-
+import logging
+logger = logging.getLogger(__name__)
 from optimizer.types import Message, MessageRole, OptimizedContext, QueryType
 
 
@@ -157,7 +158,7 @@ class Assembler:
         deduped = []
         for m in result:
             if deduped and deduped[-1]["role"] == m["role"]:
-                # Merge content
+                logger.warning("Assembler dedup fired: consecutive %s messages merged — check upstream invariant handling", m["role"])
                 deduped[-1]["content"] += f"\n{m['content']}"
             else:
                 deduped.append(m)
