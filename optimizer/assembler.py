@@ -115,11 +115,11 @@ class Assembler:
             if msg.role == MessageRole.ASSISTANT and repaired:
                 prev_role = repaired[-1].role
                 if prev_role == MessageRole.ASSISTANT:
-                    # Insert a bridging user turn
+                    # Insert a bridging system marker
                     repaired.append(Message(
                         index=msg.index - 1,
-                        role=MessageRole.USER,
-                        content="[continued]",
+                        role=MessageRole.SYSTEM,
+                        content="[CONTEXT NOTE: conversation continues — assistant turn follows assistant turn due to compression]",
                     ))
 
             repaired.append(msg)
