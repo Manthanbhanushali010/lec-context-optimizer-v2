@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import anthropic
 
-from optimizer.types import Message, MessageClass, MessageRole, ScoredMessage
+from optimizer.types import Message, MessageClass, MessageRole,ScoredMessage,estimate_tokens
 
 _client = anthropic.Anthropic()
 
@@ -73,12 +73,12 @@ class Compressor:
             elif group_class == MessageClass.NOISE and len(group_messages) < self.min_group_size:
                 # Single noise message — just discard
                 discarded_count += len(group_messages)
-                tokens_saved += sum(self._estimate_tokens(sm.message.content) for sm in group_messages)
+                tokens_saved += sum(estimate_tokens(sm.message.content) for sm in group_messages)
 
             else:
                 # Compressible group (or large noise group) → summarise
                 msgs = [sm.message for sm in group_messages]
-                original_tokens = sum(self._estimate_tokens(m.content) for m in msgs)
+                original_tokens = sum(estimate_tokens(m.content) for m in msgs)
 
                 summary, cost = self._summarise_group(msgs)
 
@@ -86,7 +86,7 @@ class Compressor:
                     summaries.append(summary)
                     compressed_groups += 1
                     total_cost += cost
-                    tokens_saved += original_tokens - self._estimate_tokens(summary.content)
+                    tokens_saved += original_tokens - estimate_tokens(summary.content)
                 else:
                     # Summarisation failed — keep originals to be safe
                     kept.extend(msgs)
@@ -177,6 +177,4 @@ Sub-thread:
             print(f"Compression failed for group of {len(messages)}: {exc}")
             return None, 0.0
 
-    def _estimate_tokens(self, text: str) -> int:
-        """Rough token estimate: ~4 chars per token."""
-        return max(1, len(text) // 4)
+    

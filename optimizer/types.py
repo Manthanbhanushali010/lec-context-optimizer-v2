@@ -89,3 +89,6 @@ class EvalResult:
     full_context_cost_usd: float
     optimized_context_cost_usd: float
     net_saving_usd: float
+def estimate_tokens(text: str) -> int:
+    """Estimate token count — ~4 chars per token. Replace with tiktoken for production accuracy."""
+    return max(1, len(text) // 4)
