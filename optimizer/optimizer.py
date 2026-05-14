@@ -130,3 +130,136 @@ class ContextOptimizer:
             query_type=QueryType.GENERAL,
             scoring_weights=WEIGHT_PROFILES[QueryType.GENERAL],
         )
+
+
+# ── Ingest-time compression ───────────────────────────────────────────────────
+
+from optimizer.conversation_store import ConversationStore
+from optimizer.chapter_compressor import compress_to_chapter
+
+
+def ingest_message(
+    store: ConversationStore,
+    conversation_id: str,
+    message: Message,
+) -> dict:
+    """
+    Ingest path — called when a new message arrives.
+
+    Adds the message to the live tail. If a chapter boundary is hit,
+    compresses the live tail into a frozen Chapter automatically.
+
+    Returns a status dict describing what happened.
+    """
+    store.add_message(conversation_id, message)
+
+    if store.should_close_chapter(conversation_id):
+        chapters, live_tail = store.get_context(conversation_id)
+
+        # Compress the live tail into a chapter
+        chapter, cost = compress_to_chapter(live_tail)
+
+        if chapter:
+            # Extract landmark messages from the live tail
+            from optimizer.chapter_compressor import _is_landmark
+            landmark_messages = [m for m in live_tail if _is_landmark(m)]
+
+            store.close_chapter(
+                conversation_id=conversation_id,
+                compressed_content=chapter.compressed_content,
+                landmark_messages=landmark_messages,
+                compression_cost_usd=cost,
+            )
+            return {
+                "status": "chapter_created",
+                "chapter_id": chapter.chapter_id,
+                "messages_compressed": chapter.original_message_count,
+                "landmarks_preserved": len(landmark_messages),
+                "cost_usd": cost,
+            }
+        else:
+            return {
+                "status": "compression_failed",
+                "live_tail_length": store.live_tail_length(conversation_id),
+            }
+
+    return {
+        "status": "message_added",
+        "live_tail_length": store.live_tail_length(conversation_id),
+    }
+
+
+def optimize_with_store(
+    store: ConversationStore,
+    conversation_id: str,
+    query: str,
+    optimizer: "ContextOptimizer",
+    query_type=None,
+) -> "OptimizedContext":
+    """
+    Query path — called when user asks a question.
+
+    Retrieves frozen chapters (byte-stable, cache hits) plus
+    the live tail (recent, scored per query).
+
+    Why score only the live tail?
+      Frozen chapters are already compressed — re-scoring them
+      would defeat the purpose of freezing. The chapter summary
+      captures the meaning. Landmarks are hydrated verbatim.
+      Only the live tail needs query-aware scoring.
+    """
+    chapters, live_tail = store.get_context(conversation_id)
+
+    # Reconstruct frozen chapter messages (byte-stable)
+    chapter_messages = []
+    for chapter in chapters:
+        chapter_messages.extend(chapter.to_messages())
+
+    if not live_tail and not chapter_messages:
+        return optimizer._empty_result()
+
+    if not live_tail:
+        # Only frozen chapters — no live tail to score
+        # Assemble chapter messages directly
+        from optimizer.types import QueryType
+        from optimizer.scorer import WEIGHT_PROFILES
+        qt = query_type or QueryType.GENERAL
+        return optimizer.assembler.assemble(
+            kept_messages=chapter_messages,
+            summary_messages=[],
+            original_token_count=sum(max(1, len(m.content) // 4) for m in chapter_messages),
+            compression_cost_usd=0.0,
+            query_type=qt,
+            scoring_weights=WEIGHT_PROFILES[qt],
+            assembly_latency_ms=0.0,
+            stats={"kept_verbatim": len(chapter_messages), "compressed_groups": len(chapters),
+                   "discarded": 0, "landmarks_preserved": 0},
+        )
+
+    # Score ONLY the live tail — this is the key difference from v1
+    live_tail_result = optimizer.optimize(live_tail, query, query_type)
+
+    # Combine: frozen chapters first, then scored live tail
+    combined_messages = chapter_messages + live_tail_result.messages
+
+    # Re-assemble combined context
+    from optimizer.types import QueryType
+    from optimizer.scorer import WEIGHT_PROFILES
+    qt = live_tail_result.query_type
+    original_tokens = sum(max(1, len(m.content) // 4) for m in chapter_messages) + live_tail_result.original_token_count
+
+    return optimizer.assembler.assemble(
+        kept_messages=combined_messages,
+        summary_messages=[],
+        original_token_count=original_tokens,
+        compression_cost_usd=live_tail_result.compression_cost_usd,
+        query_type=qt,
+        scoring_weights=WEIGHT_PROFILES[qt],
+        assembly_latency_ms=live_tail_result.assembly_latency_ms,
+        stats={
+            "kept_verbatim": len(chapter_messages) + live_tail_result.kept_verbatim,
+            "compressed_groups": len(chapters) + live_tail_result.compressed_groups,
+            "discarded": live_tail_result.discarded,
+            "landmarks_preserved": live_tail_result.landmarks_preserved,
+        },
+    )
