@@ -12,6 +12,8 @@ The core requirement: optimised_score >= full_score.
 """
 
 import asyncio
+from dotenv import load_dotenv
+load_dotenv()
 import json
 import os
 import time
@@ -353,6 +355,11 @@ def run_evaluation() -> dict:
                 "token_reduction_pct": r.token_reduction_pct,
                 "assembly_latency_ms": r.assembly_latency_ms,
                 "net_saving_usd": r.net_saving_usd,
+                "gpt_full_score": r.gpt_full_score,
+                "gpt_opt_score": r.gpt_opt_score,
+                "gpt_optimized_wins": r.gpt_optimized_wins,
+                "judge_divergence": r.judge_divergence,
+                "gpt_judge_failed": r.gpt_judge_failed,
             }
             for r in results
         ],
@@ -368,6 +375,14 @@ def run_evaluation() -> dict:
     print(f"Score delta:                  {summary['avg_score_delta']:+.3f}")
     print(f"Assembly latency p95:         {summary['assembly_latency_p95_ms']:.0f}ms")
     print(f"Projected monthly saving:     ${summary['projected_monthly_saving_usd']:,.2f}")
+    gpt_results = [r for r in results if not r.gpt_judge_failed]
+    if gpt_results:
+        gpt_wins = sum(1 for r in gpt_results if r.gpt_optimized_wins)
+        avg_div = sum(r.judge_divergence for r in gpt_results) / len(gpt_results)
+        print(f"Cross-family judge (GPT-4o):")
+        print(f"  GPT win rate:               {gpt_wins/len(gpt_results):.1%}  ({gpt_wins}/{len(gpt_results)})")
+        print(f"  Avg judge divergence:       {avg_div:.2f} points")
+        print(f"  GPT judge failures:         {n - len(gpt_results)}/{n}")
     print("\nBy query type:")
     for qt, s in type_summary.items():
         print(f"  {qt:12s}: win_rate={s['win_rate']:.1%}, reduction={s['avg_reduction_pct']:.1f}%, delta={s['avg_score_delta']:+.3f}")
