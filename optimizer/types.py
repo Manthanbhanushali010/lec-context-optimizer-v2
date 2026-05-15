@@ -80,15 +80,21 @@ class EvalResult:
     query_type: str
     full_answer: str
     optimized_answer: str
-    full_score: float           # LLM judge score 0-9
-    optimized_score: float      # LLM judge score 0-9
-    optimized_wins: bool        # optimized_score >= full_score
+    full_score: float
+    optimized_score: float
+    optimized_wins: bool
     token_reduction_pct: float
     assembly_latency_ms: float
     compression_cost_usd: float
     full_context_cost_usd: float
     optimized_context_cost_usd: float
     net_saving_usd: float
+    gpt_full_score: float = 0.0
+    gpt_opt_score: float = 0.0
+    gpt_optimized_wins: bool = False
+    judge_divergence: float = 0.0
+    gpt_judge_failed: bool = False
+
 def estimate_tokens(text: str) -> int:
     """Estimate token count — ~4 chars per token. Replace with tiktoken for production accuracy."""
     return max(1, len(text) // 4)

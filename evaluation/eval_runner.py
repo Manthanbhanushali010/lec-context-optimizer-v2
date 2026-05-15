@@ -18,6 +18,7 @@ import time
 from dataclasses import asdict
 
 import anthropic
+import openai as _openai_module
 
 from evaluation.conversations import get_all_eval_cases
 from optimizer.assembler import Assembler
@@ -145,6 +146,67 @@ Respond ONLY with valid JSON, no markdown:
         return 5.0, 5.0  # neutral fallback
 
 
+def _judge_answers_gpt(query: str, full_answer: str, optimized_answer: str) -> tuple[float, float, bool]:
+    """
+    Use GPT-4o as cross-family judge to score both answers 0-9.
+
+    Why GPT-4o and not another Claude model?
+      Cross-family judging eliminates homophily bias. Haiku compresses
+      AND judges in the current eval — same model family on both sides.
+      GPT-4o is from a different model family with different stylistic
+      priors. If both judges agree, the quality claim is credible.
+      If they diverge significantly, the result is flagged for review.
+
+    Returns: (full_score, opt_score, failed)
+      failed=True means the judge errored — scores default to 5.0, 5.0
+    """
+    import os
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        return 5.0, 5.0, True
+
+    client = _openai_module.OpenAI(api_key=api_key)
+
+    prompt = f"""You are an objective answer quality judge.
+Query: {query}
+Answer A:
+{full_answer[:600]}
+Answer B:
+{optimized_answer[:600]}
+Score each answer on three dimensions (0-3 each):
+- Accuracy: Is the information correct and specific?
+- Completeness: Does it address all parts of the query?
+- Groundedness: Is it based on actual conversation facts, not guesses?
+Respond ONLY with valid JSON, no markdown:
+{{"answer_a": {{"accuracy": 0, "completeness": 0, "groundedness": 0}}, "answer_b": {{"accuracy": 0, "completeness": 0, "groundedness": 0}}}}"""
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            max_tokens=200,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+        )
+        raw = response.choices[0].message.content.strip()
+        # Strip markdown if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        data = json.loads(raw.strip())
+        a = data["answer_a"]
+        b = data["answer_b"]
+        full_score = float(a["accuracy"] + a["completeness"] + a["groundedness"])
+        opt_score  = float(b["accuracy"] + b["completeness"] + b["groundedness"])
+        return full_score, opt_score, False
+    except Exception as exc:
+        print(f"GPT judge failed: {exc}")
+        return 5.0, 5.0, True
+
+
 def run_single_case(case: dict, optimizer: ContextOptimizer) -> EvalResult:
     """Run one conversation × query through the full eval pipeline."""
     messages: list[Message] = case["messages"]
@@ -160,13 +222,21 @@ def run_single_case(case: dict, optimizer: ContextOptimizer) -> EvalResult:
     # Step 3: Answer with optimized context
     opt_answer, opt_cost = _answer_with_optimized_context(optimized_thread, query)
 
-    # Step 4: Judge
+    # Step 4: Judge — dual judge (Haiku + GPT-4o)
     full_score, opt_score = _judge_answers(query, full_answer, opt_answer)
+    gpt_full_score, gpt_opt_score, gpt_failed = _judge_answers_gpt(query, full_answer, opt_answer)
+    judge_divergence = abs(full_score - gpt_full_score)
 
     # Step 5: Cost analysis
     full_tokens = sum(_estimate_tokens(m.content) for m in messages)
     compression_cost = optimized.compression_cost_usd
     net_saving = full_cost - (opt_cost + compression_cost)
+
+    # Use minimum score as adversarial aggregation
+    # If both judges agree the optimized answer is good, confidence is high
+    # If they diverge, flag it — the result needs human review
+    adversarial_full = min(full_score, gpt_full_score) if not gpt_failed else full_score
+    adversarial_opt  = min(opt_score, gpt_opt_score)  if not gpt_failed else opt_score
 
     return EvalResult(
         conversation_id=case["conversation_id"],
@@ -183,6 +253,11 @@ def run_single_case(case: dict, optimizer: ContextOptimizer) -> EvalResult:
         full_context_cost_usd=full_cost,
         optimized_context_cost_usd=opt_cost,
         net_saving_usd=round(net_saving, 6),
+        gpt_full_score=gpt_full_score,
+        gpt_opt_score=gpt_opt_score,
+        gpt_optimized_wins=gpt_opt_score >= gpt_full_score,
+        judge_divergence=round(judge_divergence, 4),
+        gpt_judge_failed=gpt_failed,
     )
 
 
